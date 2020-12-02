@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>stevan dedovic</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="all,follow">
+    <meta name="googlebot" content="index,follow,snippet,archive">
+
+    <link rel="stylesheet" href="https://dedovic.com/reset.css">
+    <link rel="stylesheet" href="https://dedovic.com/main.css">
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+    
+</head>
+<body>
+    <div>
+        <header>
+    <nav>
+        <div class="nav-section">
+            <h1 class="nav-title"><a href="/">stevan dedovic</a></h1>
+        </div>
+        <div class="nav-section nav-headings">
+            <div><a href="/writings/">Writings</a></div>
+        </div>
+        <div class="nav-section nav-social">
+            <a href="https://www.instagram.com/mr_praline">
+                <img class="social" src="https://dedovic.com/icons/instagram.svg"/>
+            </a>
+            <a href="https://www.github.com/sdedovic">
+                <img class="social" src="https://dedovic.com/icons/github.svg"/>
+            </a>
+        </div>
+    </nav>
+</header>
+    </div>
+    <div class="container site-container">
+        
+<main>
+    <article>
+        <div class="heading">
+            <h3 class="heading-date">Nov 26, 2020</h3>
+            <h1 class="heading heading-post">My Quil Setup</h1>
+        </div>
+        <div>
+            <p>Quil is a very simple Processing wrapper for Clojure. The writeup below is mostly code-snippets and my personal workflow.</p>
+<p>I usually work on animations and bigger projects where I like to embed sketches that act as a renderer.
+I don&rsquo;t usually focus on real-time animations, instead saving each render to a file and then stitching it together into a video
+using FFmpeg. Or just selecting some of my favorite stills and publishing those.</p>
+<p>Some supplementary reading:</p>
+<ul>
+<li><a href="https://tylerxhobbs.com/essays/2015/using-quil-for-artwork">Tyler Hobbs, Using Quil For Artwork</a></li>
+<li><a href="http://quil.info/api">Quil.info, API Reference</a></li>
+<li><a href="https://processing.org/tutorials/">Processing.org, Tutorials</a></li>
+</ul>
+<h2 id="setup-fn">Setup Fn</h2>
+<p>I use the following <code>setup</code> function for my sketches,</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-clojure" data-lang="clojure">(<span style="color:#ff79c6">fn </span>[]
+  (<span style="color:#50fa7b">q/frame-rate</span> <span style="color:#bd93f9">60</span>)
+  (<span style="color:#50fa7b">q/color-mode</span> <span style="color:#f1fa8c">:hsb</span> <span style="color:#bd93f9">360</span> <span style="color:#bd93f9">100</span> <span style="color:#bd93f9">100</span> <span style="color:#bd93f9">1.0</span>)
+  
+  (<span style="color:#50fa7b">q/stroke-cap</span> <span style="color:#f1fa8c">:project</span>)
+  (<span style="color:#50fa7b">q/stroke-join</span> <span style="color:#f1fa8c">:miter</span>)
+  (<span style="color:#50fa7b">q/stroke-weight</span> <span style="color:#bd93f9">1</span>)
+
+  (<span style="color:#50fa7b">q/no-stroke</span>)
+  (<span style="color:#50fa7b">q/no-fill</span>)
+  (<span style="color:#50fa7b">q/background</span> <span style="color:#bd93f9">0</span> <span style="color:#bd93f9">0</span> <span style="color:#bd93f9">100</span>)
+
+  <span style="color:#6272a4">; return a map if using </span>
+  <span style="color:#6272a4">; fun-mode middleware</span>
+  {})
+</code></pre></div><p>Here <a href="https://processing.org/reference/strokeJoin_.html">Line segment joints</a> and
+<a href="https://processing.org/reference/strokeCap_.html">line endings</a> are set to not perform any rounding. With default
+settings, drawing lines, shapes, and points will cause each call to Quil (and therefore Processing) to do some
+extra computation. In my experience this &ldquo;improved&rdquo; stylization doesn&rsquo;t really give you much. Additionally, there is a
+noticeable performance hit when drawing large sets of geometries.</p>
+<p>I prefer using the HSB color space. I think it is easier for reasoning about colors artistically. The way it&rsquo;s setup above,
+hue is in a range of [0, 360), saturation and lightness are [0, 100]. It becomes very simple to recognize that hue values
+around 350-50 are red-ish, 120 is green, 150-250 are blue-ish, etc.</p>
+<h2 id="utility-fns-macros">Utility Fns, Macros</h2>
+<h3 id="context-wrapping">Context Wrapping</h3>
+<p>Kindly <a href="https://gitlab.com/ooesili/quils/-/blob/master/src/quils/util.clj#L4">stolen from @ooesili</a>,</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-clojure" data-lang="clojure">(<span style="color:#8be9fd;font-style:italic">defmacro </span><span style="color:#8be9fd;font-style:italic">with-matrix</span> [<span style="color:#ff79c6">&amp;</span> <span style="color:#8be9fd;font-style:italic">body</span>]
+  <span style="color:#ff79c6">`</span>(<span style="color:#50fa7b">do</span>
+     (<span style="color:#50fa7b">q/push-matrix</span>)
+     (<span style="color:#50fa7b">try</span>
+       <span style="color:#ff79c6">~@</span><span style="color:#8be9fd;font-style:italic">body</span>
+       (<span style="color:#50fa7b">finally</span> (<span style="color:#50fa7b">q/pop-matrix</span>)))))
+
+(<span style="color:#8be9fd;font-style:italic">defmacro </span><span style="color:#8be9fd;font-style:italic">with-style</span> [<span style="color:#ff79c6">&amp;</span> <span style="color:#8be9fd;font-style:italic">body</span>]
+  <span style="color:#ff79c6">`</span>(<span style="color:#50fa7b">do</span>
+     (<span style="color:#50fa7b">q/push-style</span>)
+     (<span style="color:#50fa7b">try</span>
+       <span style="color:#ff79c6">~@</span><span style="color:#8be9fd;font-style:italic">body</span>
+       (<span style="color:#50fa7b">finally</span> (<span style="color:#50fa7b">q/pop-style</span>)))))
+</code></pre></div><p>The above macros help manage different contexts. Often times I find myself needing to stylize a specific part of a drawing
+and then revert all those style changes for the rest of the drawing. Maybe I want to add some debug info, in the top right
+corner. Wrapping that code in <code>with-style</code>, for example, lets me modify any style fields for the duration of the macro&rsquo;s body.
+Likewise, <code>with-matrix</code> is useful for executing some drawing elsewhere or scaled, etc. The best part is they can be nested.</p>
+<h3 id="saving-images">Saving Images</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-clojure" data-lang="clojure">(<span style="color:#ff79c6">fn </span>[<span style="color:#8be9fd;font-style:italic">index</span>]
+  (<span style="color:#ff79c6">let </span>[<span style="color:#8be9fd;font-style:italic">fname</span> (<span style="color:#8be9fd;font-style:italic">str </span><span style="color:#f1fa8c">&#34;output/temp/&#34;</span> <span style="color:#8be9fd;font-style:italic">index </span><span style="color:#f1fa8c">&#34;.png&#34;</span>)]
+    (<span style="color:#50fa7b">q/save</span> <span style="color:#8be9fd;font-style:italic">fname</span>)))
+</code></pre></div><p>The above uses <code>quil.core/save</code> to save images. It will take whatever you see in your sketch and persist it on disk. A few
+different file types are supported but I use:</p>
+<ul>
+<li><code>.tiff</code> for high resolution, and</li>
+<li><code>.png</code> for doodles</li>
+</ul>
+<p>To stitch images together I use <a href="ffmpeg.org">FFmpeg</a></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">ffmpeg -i output/temp/%d.png -r <span style="color:#bd93f9">60</span> -s 1024x1024 -vcodec libx264 -crf <span style="color:#bd93f9">25</span> -pix_fmt yuv420p output.mp4
+</code></pre></div><p>The above command sets some sane defaults to keep the output file size low. It&rsquo;s usually perfect for sharing with folks
+or uploading to Instagram/youtube. The <code>-r</code> flag will set the framerate and <code>-s</code> will set the output size. I tend to keep
+this matching my sketch configurations, as seen above.</p>
+<h2 id="a-complete-example">A Complete Example</h2>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-clojure" data-lang="clojure">(<span style="color:#8be9fd;font-style:italic">ns </span><span style="color:#8be9fd;font-style:italic">com.dedovic.sketch.example</span>
+  (<span style="color:#f1fa8c">:require</span> [<span style="color:#8be9fd;font-style:italic">quil.core</span> <span style="color:#f1fa8c">:as</span> <span style="color:#8be9fd;font-style:italic">q</span>]
+            [<span style="color:#8be9fd;font-style:italic">quil.middleware</span> <span style="color:#f1fa8c">:as</span> <span style="color:#8be9fd;font-style:italic">qm</span>])
+
+<span style="color:#6272a4">;; Constants</span>
+(<span style="color:#ff79c6">def </span><span style="color:#8be9fd;font-style:italic">tau</span> (<span style="color:#8be9fd;font-style:italic">* </span><span style="color:#8be9fd;font-style:italic">Math/PI</span> <span style="color:#bd93f9">2</span>))
+
+<span style="color:#6272a4">;; Setup Fn</span>
+(<span style="color:#8be9fd;font-style:italic">defn- </span><span style="color:#8be9fd;font-style:italic">setup</span> [] {})
+
+<span style="color:#6272a4">;; Draw Fn, fun-mode</span>
+(<span style="color:#8be9fd;font-style:italic">defn- </span><span style="color:#8be9fd;font-style:italic">draw</span> [<span style="color:#8be9fd;font-style:italic">state</span>] {})
+
+(<span style="color:#ff79c6">let </span>[<span style="color:#8be9fd;font-style:italic">fps</span> <span style="color:#bd93f9">60</span>
+      <span style="color:#8be9fd;font-style:italic">ms-per-frame</span> (<span style="color:#8be9fd;font-style:italic">/ </span><span style="color:#bd93f9">1000</span> <span style="color:#8be9fd;font-style:italic">fps</span>)]
+  (<span style="color:#8be9fd;font-style:italic">defn- </span><span style="color:#8be9fd;font-style:italic">update-state</span> [<span style="color:#8be9fd;font-style:italic">state</span>]
+    (<span style="color:#8be9fd;font-style:italic">-&gt; </span><span style="color:#8be9fd;font-style:italic">state</span> 
+        (<span style="color:#50fa7b">update</span> <span style="color:#f1fa8c">:foo</span> <span style="color:#8be9fd;font-style:italic">inc</span>)
+        (<span style="color:#8be9fd;font-style:italic">assoc </span><span style="color:#f1fa8c">:bar</span> (<span style="color:#50fa7b">make-bar</span>))
+        (<span style="color:#8be9fd;font-style:italic">assoc </span><span style="color:#f1fa8c">:baz</span> (<span style="color:#50fa7b">get-baz</span>)))))
+
+(<span style="color:#8be9fd;font-style:italic">defn </span><span style="color:#8be9fd;font-style:italic">make-sketch</span> 
+  []
+  (<span style="color:#ff79c6">let </span>[<span style="color:#8be9fd;font-style:italic">size</span> [<span style="color:#bd93f9">1080</span> <span style="color:#bd93f9">1080</span>]]
+    (<span style="color:#50fa7b">q/sketch</span>
+     <span style="color:#f1fa8c">:title</span> <span style="color:#f1fa8c">&#34;Test November&#34;</span>
+     <span style="color:#f1fa8c">:size</span> <span style="color:#8be9fd;font-style:italic">size</span>
+     <span style="color:#f1fa8c">:renderer</span> <span style="color:#f1fa8c">:p2d</span>
+
+     <span style="color:#f1fa8c">:setup</span> <span style="color:#8be9fd;font-style:italic">setup</span>
+     <span style="color:#f1fa8c">:draw</span> <span style="color:#8be9fd;font-style:italic">draw</span>
+     <span style="color:#f1fa8c">:update</span> <span style="color:#8be9fd;font-style:italic">update-state</span>
+     <span style="color:#f1fa8c">:middleware</span> [<span style="color:#8be9fd;font-style:italic">qm/fun-mode</span>])))
+
+(<span style="color:#8be9fd;font-style:italic">defn </span><span style="color:#8be9fd;font-style:italic">destroy-sketch</span>
+ [<span style="color:#8be9fd;font-style:italic">sketch</span>]
+ (<span style="color:#50fa7b">.exit</span> <span style="color:#8be9fd;font-style:italic">sketch</span>))
+</code></pre></div><h2 id="interacting-with-the-example">Interacting with the Example</h2>
+<p>My typical workflow is light on the REPL (using Lein). An approach is to switch into the sketch&rsquo;s namespace and run
+things from there.</p>
+<p>In the REPL,</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-clojure" data-lang="clojure"><span style="color:#8be9fd;font-style:italic">user=&gt;</span> (<span style="color:#8be9fd;font-style:italic">in-ns </span><span style="color:#f1fa8c">&#39;com.dedovic.sketch.example</span>)
+<span style="color:#ff79c6">#</span><span style="color:#8be9fd;font-style:italic">namespace</span>[<span style="color:#8be9fd;font-style:italic">com.dedovic.sketch.example</span>]
+
+<span style="color:#8be9fd;font-style:italic">com.dedovic.sketch.example=&gt;</span> (<span style="color:#ff79c6">def </span><span style="color:#8be9fd;font-style:italic">sketch</span> (<span style="color:#50fa7b">make-sketch</span>))
+
+<span style="color:#8be9fd;font-style:italic">com.dedovic.sketch.example=&gt;</span> (<span style="color:#50fa7b">destory-sketch</span> <span style="color:#8be9fd;font-style:italic">sketch</span>)
+</code></pre></div><p>I use vim, and the <a href="https://github.com/tpope/vim-fireplace">fireplace.vim</a> plugin is the best way
+to develop clojure with vim, in my opinion. IntelliJ has good Clojure support too, but it&rsquo;s not as interactive as vim, and
+that interactivity is what makes this setup so great for developing art. It&rsquo;s just creativity with the shortest feedback
+cycle.</p>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>Anyway, there&rsquo;s a lot more I could discuss here. So instead I&rsquo;ll drop some useful links and leave that for another writeup.</p>
+<p>Quil Utilities:</p>
+<ul>
+<li><a href="https://github.com/thobbs/genartlib">Tyler Hobbs, genartlib</a></li>
+</ul>
+<p>Where to start:</p>
+<ul>
+<li><a href="https://natureofcode.com/book/">The Nature of Code</a></li>
+<li><a href="https://github.com/jasonwebb/morphogenesis-resources">Morphogenesis Resources</a></li>
+<li><a href="https://inconvergent.net/generative/">Inconvergent, On Generative Algorithms</a></li>
+</ul>
+<p>Communities</p>
+<ul>
+<li><a href="https://www.reddit.com/r/generative">Reddit, r/generative</a></li>
+<li><a href="https://www.instagram.com/explore/tags/genartclub/">Instagram, #genartclub</a></li>
+</ul>
+
+        </div>
+    </article>
+</main>
+
+        <footer>
+    <p>
+        Copyright © 2020 Stevan Dedovic <br>
+        All rights reserved
+    </p>
+</footer>
+
+    </div>
+  </body>
+</html>
